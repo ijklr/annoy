@@ -256,7 +256,7 @@ struct Euclidean {
   }
 };
 
-template<typename S, typename T>
+template<typename S, typename T, typename C1 = std::vector<S>, typename C2 = std::vector<T>>
 class AnnoyIndexInterface {
  public:
   virtual ~AnnoyIndexInterface() {};
@@ -267,16 +267,16 @@ class AnnoyIndexInterface {
   virtual void unload() = 0;
   virtual bool load(const char* filename) = 0;
   virtual T get_distance(S i, S j) = 0;
-  virtual void get_nns_by_item(S item, size_t n, size_t search_k, vector<S>* result, vector<T>* distances) = 0;
-  virtual void get_nns_by_vector(const T* w, size_t n, size_t search_k, vector<S>* result, vector<T>* distances) = 0;
+  virtual void get_nns_by_item(S item, size_t n, size_t search_k, C1* result, C2* distances) = 0;
+  virtual void get_nns_by_vector(const T* w, size_t n, size_t search_k, C1* result, C2* distances) = 0;
   virtual S get_n_items() = 0;
   virtual void verbose(bool v) = 0;
   virtual void get_item(S item, T* v) = 0;
   virtual void set_seed(int q) = 0;
 };
 
-template<typename S, typename T, typename Distance, typename Random>
-  class AnnoyIndex : public AnnoyIndexInterface<S, T> {
+template<typename S, typename T, typename Distance, typename Random, typename C1 = std::vector<S>, typename C2 = std::vector<T>>
+  class AnnoyIndex : public AnnoyIndexInterface<S, T, C1, C2> {
   /*
    * We use random projection to build a forest of binary trees of all items.
    * Basically just split the hyperspace into two sides by a hyperplane,
@@ -454,12 +454,12 @@ public:
     return D::normalized_distance(D::distance(x, y, _f));
   }
 
-  void get_nns_by_item(S item, size_t n, size_t search_k, vector<S>* result, vector<T>* distances) {
+  void get_nns_by_item(S item, size_t n, size_t search_k, C1* result, C2* distances) {
     const Node* m = _get(item);
     _get_all_nns(m->v, n, search_k, result, distances);
   }
 
-  void get_nns_by_vector(const T* w, size_t n, size_t search_k, vector<S>* result, vector<T>* distances) {
+  void get_nns_by_vector(const T* w, size_t n, size_t search_k, C1* result, C2* distances) {
     _get_all_nns(w, n, search_k, result, distances);
   }
   S get_n_items() {
@@ -566,7 +566,7 @@ protected:
     return item;
   }
 
-  void _get_all_nns(const T* v, size_t n, size_t search_k, vector<S>* result, vector<T>* distances) {
+  void _get_all_nns(const T* v, size_t n, size_t search_k, C1 *result, C2 *distances) {
     std::priority_queue<pair<T, S> > q;
 
     if (search_k == (size_t)-1)
@@ -611,11 +611,14 @@ protected:
     size_t m = nns_dist.size();
     size_t p = n < m ? n : m; // Return this many items
     std::partial_sort(nns_dist.begin(), nns_dist.begin() + p, nns_dist.end());
+		result->reserve(p);
+    if (distances)
+			distances->reserve(p);
     for (size_t i = 0; i < p; i++) {
-      if (distances)
+			result->push_back(nns_dist[i].second);
+			if (distances)
         distances->push_back(D::normalized_distance(nns_dist[i].first));
-      result->push_back(nns_dist[i].second);
-    }
+		}
   }
 };
 
